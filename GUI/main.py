@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 from util.QtFunc import *
 from util.xmlfile import *
+from util.QtFunc import convert_coordinates_to_original
 
 from GUI.UI_Main import Ui_MainWindow
 from GUI.message import LabelInputDialog
@@ -79,6 +80,7 @@ class MainFunc(QMainWindow):
         self.image_files = None
         self.img_path = None
         self.save_path = None
+        self.original_size = None  # 添加原始图像尺寸
         self.clicked_event = False
         self.paint_event = False
         self.labels = []
@@ -156,7 +158,7 @@ class MainFunc(QMainWindow):
             self.image_name = os.path.basename(self.image_path).split('.')[0]
             # print(self.image_name)
 
-            self.img_path, self.img_width, self.img_height = Change_image_Size(self.img_path)
+            self.img_path, self.img_width, self.img_height, self.original_size = Change_image_Size(self.img_path)
             self.image = cv2.imread(self.img_path)
             self.AT.Set_Image(self.image)
             self.show_qt(self.img_path)
@@ -314,8 +316,18 @@ class MainFunc(QMainWindow):
 
         elif text and self.clicked_event:
             self.ui.listWidget.addItem(text)
-            result, file_path, size = xml_message(self.save_path, self.image_name, self.img_width, self.img_height,
-                                                  text, self.AT.x, self.AT.y, self.AT.w, self.AT.h)
+            # 转换坐标到原始图像尺寸
+            if self.original_size is not None:
+                orig_x, orig_y, orig_w, orig_h = convert_coordinates_to_original(
+                    self.AT.x, self.AT.y, self.AT.w, self.AT.h, 
+                    self.original_size, (self.img_width, self.img_height)
+                )
+                result, file_path, size = xml_message(self.save_path, self.image_name, self.original_size[0], self.original_size[1],
+                                                      text, orig_x, orig_y, orig_w, orig_h)
+            else:
+                # 如果没有原始尺寸信息，使用调整后的尺寸
+                result, file_path, size = xml_message(self.save_path, self.image_name, self.img_width, self.img_height,
+                                                      text, self.AT.x, self.AT.y, self.AT.w, self.AT.h)
             self.labels.append(result)
             self.clicked_save.append([self.AT.x, self.AT.y, (self.AT.w + self.AT.x), (self.AT.h + self.AT.y)])
             xml(self.image_path, file_path, size, self.labels)
@@ -324,9 +336,18 @@ class MainFunc(QMainWindow):
             self.paint_event = False
             self.clicked_event = True
             self.ui.listWidget.addItem(text)
-            result, file_path, size = xml_message(self.save_path, self.image_name, self.img_width, self.img_height,
-                                                  text, self.x0, self.y0, abs(self.x1 - self.x0),
-                                                  abs(self.y1 - self.y0))
+            # 转换坐标到原始图像尺寸
+            if self.original_size is not None:
+                orig_x, orig_y, orig_w, orig_h = convert_coordinates_to_original(
+                    self.x0, self.y0, abs(self.x1 - self.x0), abs(self.y1 - self.y0),
+                    self.original_size, (self.img_width, self.img_height)
+                )
+                result, file_path, size = xml_message(self.save_path, self.image_name, self.original_size[0], self.original_size[1],
+                                                      text, orig_x, orig_y, orig_w, orig_h)
+            else:
+                # 如果没有原始尺寸信息，使用调整后的尺寸
+                result, file_path, size = xml_message(self.save_path, self.image_name, self.img_width, self.img_height,
+                                                      text, self.x0, self.y0, abs(self.x1 - self.x0), abs(self.y1 - self.y0))
             self.labels.append(result)
             self.paint_save.append([self.x0, self.y0, self.x1, self.y1])
             xml(self.image_path, file_path, size, self.labels)
@@ -346,8 +367,18 @@ class MainFunc(QMainWindow):
             upWindowsh("请选择保存路径")
         elif text and self.clicked_event:
             self.ui.listWidget.addItem(text)
-            result, file_path, size = xml_message(self.save_path, self.image_name, self.img_width, self.img_height,
-                                                    text, self.AT.x, self.AT.y, self.AT.w, self.AT.h)
+            # 转换坐标到原始图像尺寸
+            if self.original_size is not None:
+                orig_x, orig_y, orig_w, orig_h = convert_coordinates_to_original(
+                    self.AT.x, self.AT.y, self.AT.w, self.AT.h, 
+                    self.original_size, (self.img_width, self.img_height)
+                )
+                result, file_path, size = xml_message(self.save_path, self.image_name, self.original_size[0], self.original_size[1],
+                                                        text, orig_x, orig_y, orig_w, orig_h)
+            else:
+                # 如果没有原始尺寸信息，使用调整后的尺寸
+                result, file_path, size = xml_message(self.save_path, self.image_name, self.img_width, self.img_height,
+                                                        text, self.AT.x, self.AT.y, self.AT.w, self.AT.h)
             self.labels.append(result)
             self.clicked_save.append([self.AT.x, self.AT.y, (self.AT.w + self.AT.x), (self.AT.h + self.AT.y)])
             xml(self.image_path, file_path, size, self.labels)
@@ -660,7 +691,7 @@ class MainFunc(QMainWindow):
                     self.image_name = os.path.basename(self.image_path).split('.')[0]
                     # print(self.image_name)
 
-                    self.img_path, self.img_width, self.img_height = Change_image_Size(self.img_path)
+                    self.img_path, self.img_width, self.img_height, self.original_size = Change_image_Size(self.img_path)
                     print(self.img_path, self.img_width, self.img_height)
                     self.image = cv2.imread(self.img_path)
                     

@@ -84,7 +84,7 @@ def resize(datapoint, index, size, max_size=None, square=False, v2=False):
             datapoint.frames[index].data, size, antialias=True
         )
     else:
-        datapoint.frames[index].data = F.resize(datapoint.frames[index].data, size)
+        datapoint.frames[index].data = F.resize(datapoint.frames[index].data, size, antialias=True)
 
     new_size = (
         datapoint.frames[index].data.size()[-2:][::-1]
@@ -94,7 +94,7 @@ def resize(datapoint, index, size, max_size=None, square=False, v2=False):
 
     for obj in datapoint.frames[index].objects:
         if obj.segment is not None:
-            obj.segment = F.resize(obj.segment[None, None], size).squeeze()
+            obj.segment = F.resize(obj.segment[None, None], size, antialias=True).squeeze()
 
     h, w = size
     datapoint.frames[index].size = (h, w)
@@ -235,17 +235,18 @@ class RandomGrayscale:
     def __init__(self, consistent_transform, p=0.5):
         self.p = p
         self.consistent_transform = consistent_transform
-        self.Grayscale = T.Grayscale(num_output_channels=3)
+        # 使用F.rgb_to_grayscale替代T.Grayscale以避免antialias警告
+        self.num_output_channels = 3
 
     def __call__(self, datapoint: VideoDatapoint, **kwargs):
         if self.consistent_transform:
             if random.random() < self.p:
                 for img in datapoint.frames:
-                    img.data = self.Grayscale(img.data)
+                    img.data = F.rgb_to_grayscale(img.data, num_output_channels=self.num_output_channels)
             return datapoint
         for img in datapoint.frames:
             if random.random() < self.p:
-                img.data = self.Grayscale(img.data)
+                img.data = F.rgb_to_grayscale(img.data, num_output_channels=self.num_output_channels)
         return datapoint
 
 
@@ -269,6 +270,29 @@ class ColorJitter:
         )
         self.hue = hue if isinstance(hue, list) or hue is None else ([-hue, hue])
 
+    def _get_color_jitter_params(self):
+        """获取颜色抖动参数，替代T.ColorJitter.get_params以避免antialias警告"""
+        fn_idx = []
+        brightness_factor = None
+        contrast_factor = None
+        saturation_factor = None
+        hue_factor = None
+        
+        if self.brightness is not None:
+            brightness_factor = random.uniform(self.brightness[0], self.brightness[1])
+            fn_idx.append(0)
+        if self.contrast is not None:
+            contrast_factor = random.uniform(self.contrast[0], self.contrast[1])
+            fn_idx.append(1)
+        if self.saturation is not None:
+            saturation_factor = random.uniform(self.saturation[0], self.saturation[1])
+            fn_idx.append(2)
+        if self.hue is not None:
+            hue_factor = random.uniform(self.hue[0], self.hue[1])
+            fn_idx.append(3)
+            
+        return fn_idx, brightness_factor, contrast_factor, saturation_factor, hue_factor
+
     def __call__(self, datapoint: VideoDatapoint, **kwargs):
         if self.consistent_transform:
             # Create a color jitter transformation params
@@ -278,9 +302,7 @@ class ColorJitter:
                 contrast_factor,
                 saturation_factor,
                 hue_factor,
-            ) = T.ColorJitter.get_params(
-                self.brightness, self.contrast, self.saturation, self.hue
-            )
+            ) = self._get_color_jitter_params()
         for img in datapoint.frames:
             if not self.consistent_transform:
                 (
@@ -289,9 +311,7 @@ class ColorJitter:
                     contrast_factor,
                     saturation_factor,
                     hue_factor,
-                ) = T.ColorJitter.get_params(
-                    self.brightness, self.contrast, self.saturation, self.hue
-                )
+                ) = self._get_color_jitter_params()
             for fn_id in fn_idx:
                 if fn_id == 0 and brightness_factor is not None:
                     img.data = F.adjust_brightness(img.data, brightness_factor)
@@ -351,19 +371,38 @@ class RandomAffine:
             )
         return datapoint
 
+    def _get_affine_params(self, img_size):
+        """获取仿射变换参数，替代T.RandomAffine.get_params以避免antialias警告"""
+        angle = random.uniform(self.degrees[0], self.degrees[1])
+        
+        if self.translate is not None:
+            max_dx = self.translate[0] * img_size[0]
+            max_dy = self.translate[1] * img_size[1]
+            tx = random.uniform(-max_dx, max_dx)
+            ty = random.uniform(-max_dy, max_dy)
+        else:
+            tx = ty = 0.0
+            
+        if self.scale is not None:
+            scale = random.uniform(self.scale[0], self.scale[1])
+        else:
+            scale = 1.0
+            
+        if self.shear is not None:
+            shear_x = random.uniform(self.shear[0], self.shear[1])
+            shear_y = 0.0
+        else:
+            shear_x = shear_y = 0.0
+            
+        return angle, (tx, ty), scale, (shear_x, shear_y)
+
     def transform_datapoint(self, datapoint: VideoDatapoint):
         _, height, width = F.get_dimensions(datapoint.frames[0].data)
         img_size = [width, height]
 
         if self.consistent_transform:
             # Create a random affine transformation
-            affine_params = T.RandomAffine.get_params(
-                degrees=self.degrees,
-                translate=self.translate,
-                scale_ranges=self.scale,
-                shears=self.shear,
-                img_size=img_size,
-            )
+            affine_params = self._get_affine_params(img_size)
 
         for img_idx, img in enumerate(datapoint.frames):
             this_masks = [
@@ -372,13 +411,7 @@ class RandomAffine:
             ]
             if not self.consistent_transform:
                 # if not consistent we create a new affine params for every frame&mask pair Create a random affine transformation
-                affine_params = T.RandomAffine.get_params(
-                    degrees=self.degrees,
-                    translate=self.translate,
-                    scale_ranges=self.scale,
-                    shears=self.shear,
-                    img_size=img_size,
-                )
+                affine_params = self._get_affine_params(img_size)
 
             transformed_bboxes, transformed_masks = [], []
             for i in range(len(img.objects)):

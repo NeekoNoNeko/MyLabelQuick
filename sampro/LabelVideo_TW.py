@@ -414,9 +414,24 @@ class AnythingVideo_TW():
                             save_path_frame = f"{save_image_path}/{frame_idx}.jpg"
                             reduced_image.save(save_path_frame)
                             
+                            # 转换坐标到原始图像尺寸
+                            from util.QtFunc import convert_coordinates_to_original
+                            
+                            # 获取原始图像尺寸（这里需要从原始帧获取）
+                            original_frame = cv2.imread(frame_path)
+                            original_height, original_width = original_frame.shape[:2]
+                            original_size = (original_width, original_height)
+                            resized_size = (int(width), int(height))
+                            
+                            # 转换坐标
+                            orig_x, orig_y, orig_w, orig_h = convert_coordinates_to_original(
+                                self.x, self.y, self.w, self.h, 
+                                original_size, resized_size
+                            )
+                            
                             result, file_path, size = xml_message(
-                                save_path, frame_idx, int(width), int(height),
-                                text, self.x, self.y, self.w, self.h
+                                save_path, frame_idx, original_width, original_height,
+                                text, orig_x, orig_y, orig_w, orig_h
                             )
                             xml_messages.append([result, file_path, size])
             else:

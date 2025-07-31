@@ -1,0 +1,22 @@
+<annotation>
+	<folder>C:/workspace/LabelQuick/video/photo</folder>
+	<filename>5.jpg</filename>
+	<path>C:/workspace/LabelQuick/video/photo\5.jpg</path>
+	<size>
+		<width>1300</width>
+		<height>731</height>
+		<depth>3</depth>
+	</size>
+	<object>
+		<name>b</name>
+		<pose>Unspecified</pose>
+		<truncated>0</truncated>
+		<difficult>0</difficult>
+		<bndbox>
+			<xmin>395</xmin>
+			<ymin>339</ymin>
+			<xmax>495</xmax>
+			<ymax>556</ymax>
+		</bndbox>
+	</object>
+</annotation>

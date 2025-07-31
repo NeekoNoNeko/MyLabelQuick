@@ -73,12 +73,15 @@ def xml(image_path, save_path, size, labels):
 def xml_message(save_path,image_name,img_width,img_height,text,x,y,w,h):
     file_path = os.path.join(save_path, f"{image_name}.xml")
     size = [img_width, img_height, 3]
+    # 将 (x, y, w, h) 格式转换为 (xmin, ymin, xmax, ymax) 格式
+    xmin, ymin = x, y
+    xmax, ymax = x + w, y + h
     result = {
         'name': text,
         'pose': 'Unspecified',
         'truncated': 0,
         'difficult': 0,
-        'bndbox': [x, y, w, h]
+        'bndbox': [xmin, ymin, xmax, ymax]
     }
     return result,file_path,size
 
